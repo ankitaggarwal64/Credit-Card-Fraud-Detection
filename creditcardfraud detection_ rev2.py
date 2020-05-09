@@ -206,7 +206,7 @@ plt.show()
 ### Random forest
 from sklearn.ensemble import RandomForestClassifier
 
-rclf= RandomForestClassifier(n_estimators=100,max_features='auto', random_state=0)
+rclf= RandomForestClassifier(n_estimators=500,max_features='auto', random_state=0)
 rclf.fit(x_train, y_train)
 #rpred=rclf.predict(x_test)
 rthresh = 0.1
@@ -252,6 +252,17 @@ from sklearn.grid_search import GridSearchCV
 from sklearn import cross_validation, metrics 
 
 
+## tuning strategy
+
+    #Crank up the number of trees and tune learning rate with early stopping
+    #Tune tree-specific hyperparameters
+    #Explore stochastic GBM attributes
+    #If substantial overfitting occurs (e.g., large differences between train and CV error) explore regularization hyperparameters
+    #If you find hyperparameter values that are substantially different from default settings, be sure to retune the learning rate
+    #Obtain final “optimal” model
+
+
+
 # min_child_weight is the minimum weight (or number of samples if all samples have a weight of 1) required in order to create a new node in the tree. A smaller min_child_weight allows the algorithm to create children that correspond to fewer samples, thus allowing for more complex trees, but again, more likely to overfit.
 
 ## tuning max_depth and Child weights
@@ -282,23 +293,79 @@ csv.best_params_
 #{'learning_rate': 0.2}
 
 fix_params['learning_rate'] = 0.2
-params_final =  fix_params
+params_final1 =  fix_params
 #params_final : {'colsample_bytree': 1,'learning_rate': 0.2,'max_depth': 5,'min_child_weight': 3, 'n_estimators': 100,'objective': 'binary:logistic','subsample': 0.8,'validate_parameters': 1} 
-print(params_final)
+print(params_final1)
 
 dtrain = xgb.DMatrix(x_train, label= y_train)
 dtest = xgb.DMatrix(x_test, label= y_test)
+xgb_final = xgb.train(params_final1, dtrain, num_boost_round = 100)
 
-xgb_final = xgb.train(params_final, dtrain, num_boost_round = 100)
+##train prediction
+xgbprob_train = xgb_final.predict(dtrain)
+xgbthresh1 = 0.1
+xy_pred_train1 = (xgbprob_train>=xgbthresh1).astype(bool)
+
+## metrics(train)
+x_acc_train1 = accuracy_score(y_train,xy_pred_train1)
+x_prec_train1 = precision_score(y_train, xy_pred_train1)
+x_rec_train1 = recall_score(y_train, xy_pred_train1)
+x_f1_train1 = f1_score(y_train, xy_pred_train1)
+
+##test Prediction
+xgbprob1 = xgb_final.predict(dtest)
+xgbthresh1 = 0.1
+xy_pred1 = (xgbprob1>=xgbthresh1).astype(bool)
+
+## metrics(test)
+x_acc1 = accuracy_score(y_test,xy_pred1)
+x_prec1 = precision_score(y_test, xy_pred1)
+x_rec1 = recall_score(y_test, xy_pred1)
+x_f11 = f1_score(y_test, xy_pred1)
+
+## big difference in test and train metrics, need to explore regularisation for improvement
+# Tuning with L1, alpha, default =0, lambda, default =1
+
+cv_params = {'alpha': [0.33, 5, 50]}
+csv = GridSearchCV(xgb.XGBClassifier(**fix_params), cv_params, scoring = 'f1', cv = 5) 
+csv.fit(x_train, y_train)
+csv.grid_scores_
+csv.best_params_
+## CV best alpha = 0.33 
+
+fix_params['alpha'] = 0.33
+params_final =  fix_params
+print(params_final)
+# params_final= {'learning_rate': 0.2, 'n_estimators': 100, 'early_stopping_rounds': 10, 'objective': 'binary:logistic', 'max_depth': 5, 'min_child_weight': 3, 'subsample': 0.8, 'colsample_bytree': 1, 'validate_parameters': 1, 'alpha': 0.33}
+
+
+## checking increased n_ estimators = 300
+dtrain = xgb.DMatrix(x_train, label= y_train)
+dtest = xgb.DMatrix(x_test, label= y_test)
+xgb_final = xgb.train(params_final, dtrain, num_boost_round = 300)
+
+##train prediction
+xgbprob_train = xgb_final.predict(dtrain)
+xgbthresh = 0.1
+xy_pred_train = (xgbprob_train>=xgbthresh).astype(bool)
+
+## metrics(train)
+x_acc_train = accuracy_score(y_train,xy_pred_train)
+x_prec_train = precision_score(y_train, xy_pred_train)
+x_rec_train = recall_score(y_train, xy_pred_train)
+x_f1_train = f1_score(y_train, xy_pred_train)
+
+##test Prediction
 xgbprob = xgb_final.predict(dtest)
 xgbthresh = 0.1
 xy_pred = (xgbprob>=xgbthresh).astype(bool)
 
-## metrics
+## metrics(test)
 x_acc = accuracy_score(y_test,xy_pred)
 x_prec = precision_score(y_test, xy_pred)
 x_rec = recall_score(y_test, xy_pred)
 x_f1 = f1_score(y_test, xy_pred)
+
 
 ## Confusion Matrix  for test data
 x_cm = sklearn.metrics.confusion_matrix(y_test, pd.DataFrame(xy_pred)) # rows = truth, cols = prediction
@@ -365,4 +432,4 @@ Metrics = [ (d_rec, d_prec, d_f1 , d_acc) ,
 
 Models_comparison= pd.DataFrame(Metrics, columns = ['Recall' , 'Precision', 'F1' , 'Accuracy'], index=['Decision Tree', 'Random Forest', 'XGBoost' , 'Max Vote Model'])
 Models_comparison = Models_comparison.sort_values(by='Recall',ascending=False)
-
+print( Models_comparison)
