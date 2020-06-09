@@ -123,10 +123,6 @@ for feature in var:
     
 plt.show();
 
-
-
-## bw???
-
 ###****Model Training
 
 ### train test split
